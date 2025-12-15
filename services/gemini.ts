@@ -214,9 +214,9 @@ export const startChatSession = (): Chat => {
     throw new Error("API Key faltante o inválida. Verifique la configuración en Vercel.");
   }
   
-  // Use 'gemini-2.5-flash-lite-latest' for higher throughput/quota efficiency
+  // Use 'gemini-2.0-flash-lite-preview-02-05' for higher throughput/quota efficiency
   chatSession = ai.chats.create({
-    model: 'gemini-2.5-flash-lite-latest',
+    model: 'gemini-2.0-flash-lite-preview-02-05',
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
       temperature: 0.7,
