@@ -7,6 +7,7 @@ import { Briefcase, Share2 } from 'lucide-react';
 const App: React.FC = () => {
   const [status, setStatus] = useState<AppStatus>(AppStatus.CHATTING);
   const [aiResponse, setAiResponse] = useState<AIResponse | null>(null);
+  const [logoError, setLogoError] = useState(false);
 
   const handleRequestComplete = (result: AIResponse) => {
     setAiResponse(result);
@@ -50,27 +51,25 @@ const App: React.FC = () => {
             <div className="flex items-center gap-4">
               {/* Logo Section */}
               <div className="flex-shrink-0 flex items-center">
-                 {/* Placeholder for the logo provided by user. Ensure logo.png is in the public folder */}
-                 <img 
-                    src="logo.png" 
-                    alt="RM&S S.R.L." 
-                    className="h-12 w-auto object-contain"
-                    onError={(e) => {
-                      // Fallback if image not found
-                      e.currentTarget.style.display = 'none';
-                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                    }}
-                 />
-                 {/* Fallback Text/Icon if image fails to load */}
-                 <div className="hidden flex items-center gap-2">
-                    <div className="bg-red-700 p-2 rounded-lg">
-                      <Briefcase className="w-6 h-6 text-white" />
-                    </div>
-                    <div className="flex flex-col leading-none">
-                      <span className="text-2xl font-black text-slate-900 tracking-tighter">RM&S</span>
-                      <span className="text-xs font-bold text-white bg-red-700 px-1 py-0.5 w-fit">S.R.L.</span>
-                    </div>
-                 </div>
+                 {!logoError ? (
+                   <img 
+                      src="logo.png" 
+                      alt="RM&S S.R.L." 
+                      className="h-12 w-auto object-contain"
+                      onError={() => setLogoError(true)}
+                   />
+                 ) : (
+                   /* Fallback Logo if image fails */
+                   <div className="flex items-center gap-2">
+                      <div className="bg-red-700 p-2 rounded-lg">
+                        <Briefcase className="w-6 h-6 text-white" />
+                      </div>
+                      <div className="flex flex-col leading-none">
+                        <span className="text-2xl font-black text-slate-900 tracking-tighter">RM&S</span>
+                        <span className="text-xs font-bold text-white bg-red-700 px-1 py-0.5 w-fit">S.R.L.</span>
+                      </div>
+                   </div>
+                 )}
               </div>
               
               <div className="hidden md:block h-8 w-px bg-slate-200 mx-2"></div>
