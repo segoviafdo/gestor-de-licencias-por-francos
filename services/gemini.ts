@@ -254,8 +254,14 @@ export const sendMessageToBot = async (message: string): Promise<{ text: string;
     }
 
     return { text: text };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in chat:", error);
+    
+    // Improved error handling for quota exceeded
+    if (error.message && (error.message.includes('429') || error.message.includes('quota') || error.message.includes('RESOURCE_EXHAUSTED'))) {
+       return { text: "⚠️ El sistema está recibiendo muchas consultas en este momento (Límite de cuota gratuito excedido). Por favor espera un minuto e intenta nuevamente." };
+    }
+
     return { text: "Hubo un error al procesar tu mensaje. Intenta nuevamente." };
   }
 };
