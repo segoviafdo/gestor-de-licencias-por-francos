@@ -1,0 +1,5 @@
+{
+  "name": "Gestor de Licencias por Francos",
+  "description": "Aplicación para gestionar solicitudes de licencias compensatorias basadas en francos generados, asistida por IA.",
+  "requestFramePermissions": []
+}
