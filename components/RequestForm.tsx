@@ -8,21 +8,26 @@ interface ChatInterfaceProps {
 }
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onRequestComplete }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  // OPTIMIZATION: Start with a hardcoded message to save 1 API call per page load
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: 'init-1',
+      role: 'model',
+      text: "Hola. Soy tu asistente de Relaciones Laborales. Para comenzar, por favor indícame tu nombre completo tal como figura en tu DNI."
+    }
+  ]);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
 
-  // Initialize chat on mount
+  // Initialize chat session on mount (but don't send message)
   useEffect(() => {
     if (!initialized.current) {
       initialized.current = true;
       try {
         startChatSession();
-        // Send a hidden initial trigger to get the bot to start the conversation
-        handleBotInteraction("Hola, quiero solicitar francos.", true);
       } catch (e: any) {
         console.error(e);
         setError(e.message || "Error desconocido al iniciar el chat.");
@@ -35,15 +40,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onRequestComplete 
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  const handleBotInteraction = async (userMessageText: string, hidden: boolean = false) => {
-    if (!hidden) {
-      const newUserMsg: ChatMessage = {
-        id: Date.now().toString(),
-        role: 'user',
-        text: userMessageText
-      };
-      setMessages(prev => [...prev, newUserMsg]);
-    }
+  const handleBotInteraction = async (userMessageText: string) => {
+    // Add user message to UI
+    const newUserMsg: ChatMessage = {
+      id: Date.now().toString(),
+      role: 'user',
+      text: userMessageText
+    };
+    setMessages(prev => [...prev, newUserMsg]);
     
     setIsTyping(true);
 
