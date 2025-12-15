@@ -13,7 +13,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onRequestComplete 
     {
       id: 'init-1',
       role: 'model',
-      text: "Hola. Soy tu asistente de Relaciones Laborales. Para comenzar, por favor indícame tu nombre completo tal como figura en tu DNI."
+      text: "Hola. Soy tu asistente de Relaciones Laborales. Para comenzar, por favor indícame tu nombre."
     }
   ]);
   const [inputValue, setInputValue] = useState('');
