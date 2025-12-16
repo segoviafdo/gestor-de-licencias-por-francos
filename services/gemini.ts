@@ -19,7 +19,6 @@ if (apiKey && apiKey.length > 0 && apiKey !== 'undefined') {
 const currentDate = new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
 // --- BASE DE DATOS DE EMPLEADOS ---
-// (Mantengo la DB completa, no consume tantos tokens como para afectar el límite drásticamente)
 const EMPLOYEE_DB = [
   { name: "IBAÑEZ MARCELO JAVIER", dni: "23158355" },
   { name: "GUTIERREZ SEBASTIAN ALEJANDRO", dni: "31366249" },
@@ -164,6 +163,8 @@ FLUJO (Estricto):
 5. **Fecha inicio licencia**.
 6. **DNI** (Solo si no se confirmó en paso 1).
 7. **Comentarios**.
+   - **IMPORTANTE**: ANTES de este paso, NO hagas un resumen detallado con viñetas de todos los datos (nombre, dni, fechas, etc.). SE VE CONFUSO.
+   - Simplemente confirma el último dato recibido y pregunta: "Perfecto. ¿Deseas agregar algún comentario adicional a la solicitud?".
 
 SALIDA FINAL JSON (Solo al completar):
 {
