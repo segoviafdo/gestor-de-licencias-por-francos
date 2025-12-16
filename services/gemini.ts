@@ -182,9 +182,9 @@ export const startChatSession = (): Chat => {
     throw new Error("API Key faltante o inválida.");
   }
   
-  // Usamos gemini-2.0-flash-exp por ser el más performante y actualizado para esta tarea
+  // Usamos gemini-2.5-flash: Modelo estable y con límites de cuota más altos
   chatSession = ai.chats.create({
-    model: 'gemini-2.0-flash-exp',
+    model: 'gemini-2.5-flash',
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
       temperature: 0.7,
