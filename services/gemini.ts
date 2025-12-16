@@ -214,7 +214,7 @@ export const startChatSession = (): Chat => {
     throw new Error("API Key faltante o inválida. Verifique la configuración en Vercel.");
   }
   
-  // Use 'gemini-2.5-flash' - The standard, most reliable model for basic text tasks
+  // Keep using standard model, but we will add retry logic
   chatSession = ai.chats.create({
     model: 'gemini-2.5-flash',
     config: {
@@ -224,6 +224,9 @@ export const startChatSession = (): Chat => {
   });
   return chatSession;
 };
+
+// Exponential backoff helper
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const sendMessageToBot = async (message: string): Promise<{ text: string; completedJson?: AIResponse }> => {
   if (!ai) {
@@ -238,31 +241,58 @@ export const sendMessageToBot = async (message: string): Promise<{ text: string;
     }
   }
 
-  try {
-    const response = await chatSession!.sendMessage({ message });
-    const text = response.text || "";
+  const MAX_RETRIES = 3;
+  let attempt = 0;
+  let lastError: any = null;
 
-    // Attempt to parse JSON to see if the conversation is "complete"
+  while (attempt < MAX_RETRIES) {
     try {
-      // Cleanup generic markdown code blocks if present
-      const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-      if (cleanText.startsWith('{') && cleanText.endsWith('}')) {
-        const jsonResponse = JSON.parse(cleanText) as AIResponse;
-        return { text: "", completedJson: jsonResponse };
+      const response = await chatSession!.sendMessage({ message });
+      const text = response.text || "";
+
+      // Attempt to parse JSON to see if the conversation is "complete"
+      try {
+        const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        if (cleanText.startsWith('{') && cleanText.endsWith('}')) {
+          const jsonResponse = JSON.parse(cleanText) as AIResponse;
+          return { text: "", completedJson: jsonResponse };
+        }
+      } catch (e) {
+        // Not JSON, continue conversation
       }
-    } catch (e) {
-      // Not JSON, continue conversation
-    }
 
-    return { text: text };
-  } catch (error: any) {
-    console.error("Error in chat:", error);
-    
-    // Improved error handling for quota exceeded
-    if (error.message && (error.message.includes('429') || error.message.includes('quota') || error.message.includes('RESOURCE_EXHAUSTED'))) {
-       return { text: "⚠️ Límite diario excedido. La cuota gratuita se reinicia cada 24hs (normalmente a medianoche). Por favor intenta mañana." };
-    }
+      return { text: text };
 
-    return { text: "Hubo un error al procesar tu mensaje. Intenta nuevamente." };
+    } catch (error: any) {
+      lastError = error;
+      console.warn(`Attempt ${attempt + 1} failed:`, error.message);
+
+      // Check for transient errors (503 Overloaded or 429 Quota/Rate Limit)
+      const isOverloaded = error.message?.includes('503') || error.message?.includes('overloaded') || error.message?.includes('UNAVAILABLE');
+      const isQuota = error.message?.includes('429') || error.message?.includes('quota') || error.message?.includes('RESOURCE_EXHAUSTED');
+
+      if ((isOverloaded || isQuota) && attempt < MAX_RETRIES - 1) {
+        // Wait: 1s, 2s, 4s...
+        const delayTime = 1000 * Math.pow(2, attempt);
+        await wait(delayTime);
+        attempt++;
+        continue; // Retry loop
+      } else {
+        // If it's another error or we ran out of retries, break loop
+        break;
+      }
+    }
   }
+
+  console.error("All retries failed:", lastError);
+  
+  if (lastError?.message?.includes('503') || lastError?.message?.includes('overloaded')) {
+    return { text: "⚠️ Los servidores de IA están muy saturados en este momento. Por favor, intenta de nuevo en unos segundos." };
+  }
+
+  if (lastError?.message?.includes('429') || lastError?.message?.includes('quota')) {
+    return { text: "⚠️ Límite de uso diario alcanzado. Por favor, intenta nuevamente mañana." };
+  }
+
+  return { text: "Hubo un error al conectar con el asistente. Por favor verifica tu conexión." };
 };
