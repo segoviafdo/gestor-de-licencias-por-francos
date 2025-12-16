@@ -7,7 +7,6 @@ import { Briefcase, Share2 } from 'lucide-react';
 const App: React.FC = () => {
   const [status, setStatus] = useState<AppStatus>(AppStatus.CHATTING);
   const [aiResponse, setAiResponse] = useState<AIResponse | null>(null);
-  const [logoError, setLogoError] = useState(false);
 
   const handleRequestComplete = (result: AIResponse) => {
     setAiResponse(result);
@@ -49,17 +48,8 @@ const App: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-20">
             <div className="flex items-center gap-4">
-              {/* Logo Section */}
+              {/* Logo Section - Pure CSS/SVG fallback always */}
               <div className="flex-shrink-0 flex items-center">
-                 {!logoError ? (
-                   <img 
-                      src="logo.png" 
-                      alt="RM&S S.R.L." 
-                      className="h-12 w-auto object-contain"
-                      onError={() => setLogoError(true)}
-                   />
-                 ) : (
-                   /* Fallback Logo if image fails */
                    <div className="flex items-center gap-2">
                       <div className="bg-red-700 p-2 rounded-lg">
                         <Briefcase className="w-6 h-6 text-white" />
@@ -69,7 +59,6 @@ const App: React.FC = () => {
                         <span className="text-xs font-bold text-white bg-red-700 px-1 py-0.5 w-fit">S.R.L.</span>
                       </div>
                    </div>
-                 )}
               </div>
               
               <div className="hidden md:block h-8 w-px bg-slate-200 mx-2"></div>
