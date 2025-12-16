@@ -19,6 +19,7 @@ if (apiKey && apiKey.length > 0 && apiKey !== 'undefined') {
 const currentDate = new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
 // --- BASE DE DATOS DE EMPLEADOS ---
+// (Mantengo la DB completa, no consume tantos tokens como para afectar el límite drásticamente)
 const EMPLOYEE_DB = [
   { name: "IBAÑEZ MARCELO JAVIER", dni: "23158355" },
   { name: "GUTIERREZ SEBASTIAN ALEJANDRO", dni: "31366249" },
@@ -141,69 +142,35 @@ const EMPLOYEE_DB = [
 
 // System instruction to guide the bot's behavior
 const SYSTEM_INSTRUCTION = `
-CONTEXTO TEMPORAL:
-Hoy es ${currentDate}.
-IMPORTANTE: Estamos en el año 2025.
+HOY ES: ${currentDate}.
+AÑO: 2025.
 
-LISTADO DE EMPLEADOS VALIDADOS:
+EMPLEADOS:
 ${JSON.stringify(EMPLOYEE_DB)}
 
-ROL:
-Eres una asistente de Recursos Humanos eficiente y directa.
+ERES: Asistente RR.HH.
 
-TAREA:
-Debes recolectar información para una solicitud de francos.
-Sigue este orden estricto, pero sé inteligente con la validación de identidad.
+OBJETIVO: Recolectar datos para licencia por francos.
 
-1. **Identificación (Nombre y DNI)**:
-   - Pide el nombre del empleado.
-   - **VALIDACIÓN CRÍTICA**: En cuanto te den un nombre, BÚSCALO en el "LISTADO DE EMPLEADOS VALIDADOS".
-     - **NOTA**: El listado tiene formato "APELLIDO NOMBRES" (ej: "PEREZ JUAN"), pero los usuarios hablarán normal ("Juan Pérez"). Debes ser capaz de relacionarlos.
-     - **Si encuentras coincidencia**: PREGUNTA INMEDIATAMENTE: "¿Te refieres a [Nombre Completo del listado] con DNI [DNI del listado]?".
-       - Si el usuario dice "SÍ": Da por confirmados Nombre y DNI. (NO preguntes el DNI de nuevo al final).
-       - Si el usuario dice "NO" o da otro nombre: Pide el nombre correcto y reinicia la búsqueda.
-     - **Si NO encuentras coincidencia**: 
-       - Responde textualmente: "Lo siento, no figuras en el listado de personal habilitado. No puedo continuar con la solicitud. Por favor, contacta a Recursos Humanos."
-       - **DETÉN EL PROCESO AQUÍ**. No avances al paso 2. No generes el JSON final.
+FLUJO (Estricto):
+1. **Identificación**: Pide nombre. Valida contra EMPLEADOS.
+   - Si existe: Confirma "¿Eres [Nombre] DNI [DNI]?". Si SÍ -> Paso 2. Si NO -> Reintenta.
+   - Si NO existe: "No figuras en el listado habilitado. Contacta a RR.HH." -> FIN.
+2. **Supervisor**: "¿Acordaste con supervisor?".
+   - SÍ -> Paso 3.
+   - NO -> "Debes acordar antes. Vuelve cuando definas." -> FIN.
+3. **Cantidad días**.
+4. **Fechas origen**: "¿Qué fechas trabajaste para generar estos francos?". (1 fecha por cada día pedido).
+5. **Fecha inicio licencia**.
+6. **DNI** (Solo si no se confirmó en paso 1).
+7. **Comentarios**.
 
-2. **Validación con Supervisor**:
-   - (Sólo si el usuario fue validado en el paso 1)
-   - Pregunta: "¿Ya acordaste con tu supervisor cuándo te vas a tomar el o los francos?".
-   - Si responde que SÍ: Continúa al siguiente paso.
-   - Si responde que NO: Responde textualmente: "Para avanzar con la solicitud, es obligatorio que hayas acordado previamente las fechas con tu supervisor. Por favor, coordina con él y vuelve a iniciar el trámite una vez definido."
-     - **IMPORTANTE**: Si la respuesta es NO, DETÉN EL PROCESO AQUÍ. NO continúes al paso 3. NO generes el JSON final. Simplemente termina la conversación amablemente.
-
-3. Cuántos días de franco desea tomar.
-
-4. La fecha en que generó esos francos.
-   - **PREGUNTA REQUERIDA:** "¿Cuándo trabajaste en tu descanso que te da derecho a estos francos?".
-   - **REGLA IMPORTANTE:** Ten en cuenta que **cada fecha corresponde a un franco**. 
-     - Si el usuario pide 1 día, debe dar 1 fecha de origen.
-     - Si pide 2 días, debe dar 2 fechas de origen (ej: "Trabajé el sábado 10 y el domingo 11").
-     - Si no coinciden las cantidades, acláraselo amablemente para obtener las fechas correctas.
-
-5. La fecha en que desea iniciar su licencia.
-6. Su número de DNI (**SOLO SI NO FUE CONFIRMADO EN EL PASO 1**).
-7. (Opcional) Si tiene algún comentario adicional.
-
-Reglas de interacción:
-- Sé breve.
-- Si validas el usuario con la lista, sé amable: "Gracias [Nombre], te tengo en el sistema."
-
-ESTADO FINAL (IMPORTANTE):
-Cuando tengas todo (y SOLO si pasaste la validación de nombre y de supervisor), responde ESTRICTAMENTE con este JSON:
+SALIDA FINAL JSON (Solo al completar):
 {
-  "subject": "Solicitud de Francos - [Nombre Empleado]",
-  "formalEmail": "Sres. Relaciones Laborales\\n\\nSolicito [X] días por francos generados el: [Fecha].\\nFecha de inicio de licencia: [Fecha].\\nNombre: [Nombre].\\nDNI: [Numero].\\n\\nComentarios: [Texto].",
-  "summaryStatus": "Solicitud lista para [Nombre] (DNI: [DNI]).",
-  "extractedData": {
-      "employeeName": "Nombre final",
-      "dni": "DNI final",
-      "daysRequested": "Número",
-      "generatedDate": "Fecha(s) de origen",
-      "requestedStartDate": "Fecha inicio",
-      "comments": "Texto"
-  }
+  "subject": "Solicitud Francos - [Nombre]",
+  "formalEmail": "Solicito [X] días... (Detalles completos)",
+  "summaryStatus": "Lista para [Nombre]",
+  "extractedData": { ... }
 }
 `;
 
@@ -211,10 +178,10 @@ let chatSession: Chat | null = null;
 
 export const startChatSession = (): Chat => {
   if (!ai) {
-    throw new Error("API Key faltante o inválida. Verifique la configuración en Vercel.");
+    throw new Error("API Key faltante o inválida.");
   }
   
-  // Keep using standard model, but we will add retry logic
+  // Create new session
   chatSession = ai.chats.create({
     model: 'gemini-2.5-flash',
     config: {
@@ -230,7 +197,7 @@ const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const sendMessageToBot = async (message: string): Promise<{ text: string; completedJson?: AIResponse }> => {
   if (!ai) {
-     return { text: "Error: No se ha configurado la API Key. Por favor contacte al administrador." };
+     return { text: "Error: Falta API Key." };
   }
   
   if (!chatSession) {
@@ -241,16 +208,16 @@ export const sendMessageToBot = async (message: string): Promise<{ text: string;
     }
   }
 
-  const MAX_RETRIES = 3;
+  // Aumentamos backoff para dar aire al servidor
+  const MAX_RETRIES = 2; 
   let attempt = 0;
   let lastError: any = null;
 
-  while (attempt < MAX_RETRIES) {
+  while (attempt <= MAX_RETRIES) {
     try {
       const response = await chatSession!.sendMessage({ message });
       const text = response.text || "";
 
-      // Attempt to parse JSON to see if the conversation is "complete"
       try {
         const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
         if (cleanText.startsWith('{') && cleanText.endsWith('}')) {
@@ -258,7 +225,7 @@ export const sendMessageToBot = async (message: string): Promise<{ text: string;
           return { text: "", completedJson: jsonResponse };
         }
       } catch (e) {
-        // Not JSON, continue conversation
+        // Not JSON
       }
 
       return { text: text };
@@ -267,32 +234,30 @@ export const sendMessageToBot = async (message: string): Promise<{ text: string;
       lastError = error;
       console.warn(`Attempt ${attempt + 1} failed:`, error.message);
 
-      // Check for transient errors (503 Overloaded or 429 Quota/Rate Limit)
       const isOverloaded = error.message?.includes('503') || error.message?.includes('overloaded') || error.message?.includes('UNAVAILABLE');
       const isQuota = error.message?.includes('429') || error.message?.includes('quota') || error.message?.includes('RESOURCE_EXHAUSTED');
 
-      if ((isOverloaded || isQuota) && attempt < MAX_RETRIES - 1) {
-        // Wait: 1s, 2s, 4s...
-        const delayTime = 1000 * Math.pow(2, attempt);
+      if ((isOverloaded || isQuota) && attempt < MAX_RETRIES) {
+        // Backoff más lento: 2s, 5s...
+        const delayTime = 2000 * Math.pow(2.5, attempt);
         await wait(delayTime);
         attempt++;
-        continue; // Retry loop
+        continue;
       } else {
-        // If it's another error or we ran out of retries, break loop
         break;
       }
     }
   }
 
-  console.error("All retries failed:", lastError);
+  // Mensajes de error amigables según el tipo
+  if (lastError?.message?.includes('429') || lastError?.message?.includes('quota')) {
+    // Si falló por 429 después de reintentos, es probable que sea rate limit de velocidad, no diario.
+    return { text: "⏳ **Sistema ocupado.** Estás enviando mensajes muy rápido o el servidor tiene mucho tráfico. Por favor, espera **1 minuto** e intenta enviar tu respuesta de nuevo." };
+  }
   
   if (lastError?.message?.includes('503') || lastError?.message?.includes('overloaded')) {
-    return { text: "⚠️ Los servidores de IA están muy saturados en este momento. Por favor, intenta de nuevo en unos segundos." };
+    return { text: "⚠️ Los servidores de Google están saturados momentáneamente. Por favor espera unos segundos y reintenta." };
   }
 
-  if (lastError?.message?.includes('429') || lastError?.message?.includes('quota')) {
-    return { text: "⚠️ Límite de uso diario alcanzado. Por favor, intenta nuevamente mañana." };
-  }
-
-  return { text: "Hubo un error al conectar con el asistente. Por favor verifica tu conexión." };
+  return { text: "Hubo un error de conexión. Por favor verifica tu internet o intenta de nuevo." };
 };
