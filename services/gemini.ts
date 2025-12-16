@@ -182,7 +182,7 @@ export const startChatSession = (): Chat => {
     throw new Error("API Key faltante o inválida.");
   }
   
-  // Usamos gemini-2.5-flash: Modelo estable y con límites de cuota más altos
+  // Usamos gemini-2.5-flash: Modelo estable.
   chatSession = ai.chats.create({
     model: 'gemini-2.5-flash',
     config: {
@@ -209,10 +209,11 @@ export const sendMessageToBot = async (message: string): Promise<{ text: string;
     }
   }
 
-  // Aumentamos los reintentos para evitar errores de red/cuota visibles al usuario
-  const MAX_RETRIES = 5; 
+  // Configuración de reintentos agresiva para cuentas gratuitas (límite 15-20 RPM)
+  const MAX_RETRIES = 6; 
   let attempt = 0;
   let lastError: any = null;
+  let delayTime = 2000; // Empezamos con 2 segundos
 
   while (attempt <= MAX_RETRIES) {
     try {
@@ -233,16 +234,18 @@ export const sendMessageToBot = async (message: string): Promise<{ text: string;
 
     } catch (error: any) {
       lastError = error;
-      console.warn(`Attempt ${attempt + 1} failed:`, error.message);
-
+      
       const isOverloaded = error.message?.includes('503') || error.message?.includes('overloaded') || error.message?.includes('UNAVAILABLE');
+      // 429 = Quota Exceeded (Requests Per Minute)
       const isQuota = error.message?.includes('429') || error.message?.includes('quota') || error.message?.includes('RESOURCE_EXHAUSTED');
 
       if ((isOverloaded || isQuota) && attempt < MAX_RETRIES) {
-        // Backoff exponencial para dar tiempo al servidor de liberar recursos
-        const delayTime = 1000 * Math.pow(2, attempt); 
+        console.warn(`Intento ${attempt + 1} fallido (429/503). Esperando ${delayTime}ms...`);
         await wait(delayTime);
         attempt++;
+        // Incremento exponencial: 2s -> 4s -> 8s -> 16s -> 25s (tope)
+        // Esto cubre ventanas de bloqueo de hasta ~1 minuto
+        delayTime = Math.min(delayTime * 2, 25000); 
         continue;
       } else {
         break;
@@ -250,14 +253,15 @@ export const sendMessageToBot = async (message: string): Promise<{ text: string;
     }
   }
 
-  // Mensaje más amigable en caso de falla persistente
+  console.error("Fallo definitivo tras reintentos:", lastError);
+
   if (lastError?.message?.includes('429') || lastError?.message?.includes('quota')) {
-    return { text: "⏳ **Alta demanda.** El servidor está procesando muchas solicitudes. Por favor, intenta enviar tu mensaje nuevamente." };
+    return { text: "⏳ **Servidor Saturado.** Hemos superado el límite de velocidad gratuito de Google. Por favor, espera 1 minuto antes de intentar de nuevo." };
   }
   
   if (lastError?.message?.includes('503') || lastError?.message?.includes('overloaded')) {
-    return { text: "⚠️ El servidor está momentáneamente ocupado. Por favor, intenta de nuevo en unos instantes." };
+    return { text: "⚠️ El servidor de Google está momentáneamente ocupado. Por favor, intenta de nuevo en unos instantes." };
   }
 
-  return { text: "Error de conexión. Verifica tu internet." };
+  return { text: "Error de conexión. Verifica tu internet o tu API Key." };
 };
