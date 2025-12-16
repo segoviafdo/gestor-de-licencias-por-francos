@@ -182,9 +182,9 @@ export const startChatSession = (): Chat => {
     throw new Error("API Key faltante o inválida.");
   }
   
-  // Create new session
+  // Create new session - Usando el modelo estándar estable
   chatSession = ai.chats.create({
-    model: 'gemini-2.0-flash-exp',
+    model: 'gemini-2.5-flash',
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
       temperature: 0.7,
@@ -209,9 +209,8 @@ export const sendMessageToBot = async (message: string): Promise<{ text: string;
     }
   }
 
-  // Se reducen los reintentos a una configuración más fluida y rápida
-  // ya que el modelo 2.0-flash-exp suele responder más rápido.
-  const MAX_RETRIES = 2; 
+  // Configuración equilibrada para reintentos sin congelar la app demasiado tiempo
+  const MAX_RETRIES = 3; 
   let attempt = 0;
   let lastError: any = null;
 
@@ -240,8 +239,8 @@ export const sendMessageToBot = async (message: string): Promise<{ text: string;
       const isQuota = error.message?.includes('429') || error.message?.includes('quota') || error.message?.includes('RESOURCE_EXHAUSTED');
 
       if ((isOverloaded || isQuota) && attempt < MAX_RETRIES) {
-        // Tiempos de espera más cortos para mantener la "fluidez"
-        const delayTime = 1500 * Math.pow(1.5, attempt);
+        // Espera incremental suave
+        const delayTime = 2000 * Math.pow(1.5, attempt);
         await wait(delayTime);
         attempt++;
         continue;
@@ -253,11 +252,11 @@ export const sendMessageToBot = async (message: string): Promise<{ text: string;
 
   // Mensajes de error finales
   if (lastError?.message?.includes('429') || lastError?.message?.includes('quota')) {
-    return { text: "⏳ **Sistema ocupado.** El servidor está recibiendo muchas peticiones. Por favor, intenta enviar tu respuesta nuevamente en unos segundos." };
+    return { text: "⏳ **Sistema ocupado.** El servidor está recibiendo muchas peticiones. Por favor, espera 5 segundos y vuelve a enviar tu mensaje." };
   }
   
   if (lastError?.message?.includes('503') || lastError?.message?.includes('overloaded')) {
-    return { text: "⚠️ Servidor saturado. Por favor reintenta en breve." };
+    return { text: "⚠️ Servidor saturado. Por favor espera unos segundos y reintenta." };
   }
 
   return { text: "Error de conexión. Verifica tu internet." };
