@@ -209,8 +209,8 @@ export const sendMessageToBot = async (message: string): Promise<{ text: string;
     }
   }
 
-  // Aumentamos backoff para dar aire al servidor
-  const MAX_RETRIES = 2; 
+  // Aumentamos backoff y retries drásticamente para aguantar los picos de límite de tasa (RPM)
+  const MAX_RETRIES = 5; 
   let attempt = 0;
   let lastError: any = null;
 
@@ -239,8 +239,24 @@ export const sendMessageToBot = async (message: string): Promise<{ text: string;
       const isQuota = error.message?.includes('429') || error.message?.includes('quota') || error.message?.includes('RESOURCE_EXHAUSTED');
 
       if ((isOverloaded || isQuota) && attempt < MAX_RETRIES) {
-        // Backoff más lento: 2s, 5s...
-        const delayTime = 2000 * Math.pow(2.5, attempt);
+        // Estrategia más paciente:
+        // Si es cuota (429), esperamos más porque suele ser límite por minuto (RPM).
+        // Si es 503, es más corto.
+        
+        let waitTime = 2000; // Base 2s
+        if (isQuota) {
+           waitTime = 3500; // Base 3.5s para 429
+        }
+
+        // Exponential with higher cap
+        const delayTime = waitTime * Math.pow(1.5, attempt); 
+        // Attempt 0: 3.5s
+        // Attempt 1: 5.25s
+        // Attempt 2: 7.8s
+        // Attempt 3: 11.8s
+        // Attempt 4: 17.7s
+        // Total wait potential: ~45s (suficiente para limpiar un límite de RPM bajo)
+
         await wait(delayTime);
         attempt++;
         continue;
@@ -250,15 +266,14 @@ export const sendMessageToBot = async (message: string): Promise<{ text: string;
     }
   }
 
-  // Mensajes de error amigables según el tipo
+  // Mensajes de error finales
   if (lastError?.message?.includes('429') || lastError?.message?.includes('quota')) {
-    // Si falló por 429 después de reintentos, es probable que sea rate limit de velocidad, no diario.
-    return { text: "⏳ **Sistema ocupado.** Estás enviando mensajes muy rápido o el servidor tiene mucho tráfico. Por favor, espera **1 minuto** e intenta enviar tu respuesta de nuevo." };
+    return { text: "⏳ **Sistema muy solicitado.** He intentado procesar tu solicitud varias veces pero el servidor sigue ocupado. Por favor, espera unos instantes e intenta de nuevo." };
   }
   
   if (lastError?.message?.includes('503') || lastError?.message?.includes('overloaded')) {
     return { text: "⚠️ Los servidores de Google están saturados momentáneamente. Por favor espera unos segundos y reintenta." };
   }
 
-  return { text: "Hubo un error de conexión. Por favor verifica tu internet o intenta de nuevo." };
+  return { text: "Hubo un error de conexión persistente. Por favor verifica tu internet." };
 };
