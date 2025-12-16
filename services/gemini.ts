@@ -182,9 +182,9 @@ export const startChatSession = (): Chat => {
     throw new Error("API Key faltante o inválida.");
   }
   
-  // Create new session - Usando el modelo estándar estable
+  // Usamos gemini-2.0-flash-exp por ser el más performante y actualizado para esta tarea
   chatSession = ai.chats.create({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-2.0-flash-exp',
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
       temperature: 0.7,
@@ -209,8 +209,8 @@ export const sendMessageToBot = async (message: string): Promise<{ text: string;
     }
   }
 
-  // Configuración equilibrada para reintentos sin congelar la app demasiado tiempo
-  const MAX_RETRIES = 3; 
+  // Aumentamos los reintentos para evitar errores de red/cuota visibles al usuario
+  const MAX_RETRIES = 5; 
   let attempt = 0;
   let lastError: any = null;
 
@@ -239,8 +239,8 @@ export const sendMessageToBot = async (message: string): Promise<{ text: string;
       const isQuota = error.message?.includes('429') || error.message?.includes('quota') || error.message?.includes('RESOURCE_EXHAUSTED');
 
       if ((isOverloaded || isQuota) && attempt < MAX_RETRIES) {
-        // Espera incremental suave
-        const delayTime = 2000 * Math.pow(1.5, attempt);
+        // Backoff exponencial para dar tiempo al servidor de liberar recursos
+        const delayTime = 1000 * Math.pow(2, attempt); 
         await wait(delayTime);
         attempt++;
         continue;
@@ -250,13 +250,13 @@ export const sendMessageToBot = async (message: string): Promise<{ text: string;
     }
   }
 
-  // Mensajes de error finales
+  // Mensaje más amigable en caso de falla persistente
   if (lastError?.message?.includes('429') || lastError?.message?.includes('quota')) {
-    return { text: "⏳ **Sistema ocupado.** El servidor está recibiendo muchas peticiones. Por favor, espera 5 segundos y vuelve a enviar tu mensaje." };
+    return { text: "⏳ **Alta demanda.** El servidor está procesando muchas solicitudes. Por favor, intenta enviar tu mensaje nuevamente." };
   }
   
   if (lastError?.message?.includes('503') || lastError?.message?.includes('overloaded')) {
-    return { text: "⚠️ Servidor saturado. Por favor espera unos segundos y reintenta." };
+    return { text: "⚠️ El servidor está momentáneamente ocupado. Por favor, intenta de nuevo en unos instantes." };
   }
 
   return { text: "Error de conexión. Verifica tu internet." };
