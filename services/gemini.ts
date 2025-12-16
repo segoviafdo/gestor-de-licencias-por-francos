@@ -214,9 +214,9 @@ export const startChatSession = (): Chat => {
     throw new Error("API Key faltante o inválida. Verifique la configuración en Vercel.");
   }
   
-  // Use 'gemini-2.0-flash-lite-preview-02-05' for higher throughput/quota efficiency
+  // Use 'gemini-2.5-flash' - The standard, most reliable model for basic text tasks
   chatSession = ai.chats.create({
-    model: 'gemini-2.0-flash-lite-preview-02-05',
+    model: 'gemini-2.5-flash',
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
       temperature: 0.7,
@@ -260,7 +260,7 @@ export const sendMessageToBot = async (message: string): Promise<{ text: string;
     
     // Improved error handling for quota exceeded
     if (error.message && (error.message.includes('429') || error.message.includes('quota') || error.message.includes('RESOURCE_EXHAUSTED'))) {
-       return { text: "⚠️ El sistema está recibiendo muchas consultas en este momento (Límite de cuota gratuito excedido). Por favor espera un minuto e intenta nuevamente." };
+       return { text: "⚠️ Límite diario excedido. La cuota gratuita se reinicia cada 24hs (normalmente a medianoche). Por favor intenta mañana." };
     }
 
     return { text: "Hubo un error al procesar tu mensaje. Intenta nuevamente." };
